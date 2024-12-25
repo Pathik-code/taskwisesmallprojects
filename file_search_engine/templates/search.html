@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Search Engine</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .container { display: flex; gap: 20px; }
+        .search-panel { flex: 1; }
+        .results-panel { flex: 2; }
+        .performance-panel { margin-top: 20px; }
+
+        .search-form { margin-bottom: 20px; padding: 20px; background: #f5f5f5; }
+        .result-item { padding: 10px; border-bottom: 1px solid #eee; }
+        .help-section { margin-top: 20px; padding: 20px; background: #f8f9fa; }
+        .cmd-example { background: #eee; padding: 10px; margin: 5px 0; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="search-panel">
+            <div class="search-form">
+                <h2>Search Files</h2>
+                <form id="searchForm">
+                    <div>
+                        <label for="searchMethod">Search Method:</label>
+                        <select id="searchMethod" name="method">
+                            <option value="name">By Name</option>
+                            <option value="date">By Date</option>
+                            <option value="size">By Size</option>
+                            <option value="type">By Type</option>
+                            <option value="regex">By Regex</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="searchQuery">Search Query:</label>
+                        <input type="text" id="searchQuery" name="query">
+                    </div>
+                    <div>
+                        <label>
+                            <input type="checkbox" id="useIndex" name="useIndex" checked>
+                            Use Index
+                        </label>
+                    </div>
+                    <div>
+                        <label>
+                            <input type="checkbox" id="comparePerformance" name="comparePerformance">
+                            Compare Performance
+                        </label>
+                    </div>
+                    <button type="submit">Search</button>
+                </form>
+            </div>
+
+            <div class="help-section">
+                <h3>Command-line Usage</h3>
+                <div class="cmd-example">
+                    # Search by name
+                    python cli.py -r /path/to/search -m name -q "test"
+                </div>
+                <div class="cmd-example">
+                    # Search by date (last 7 days)
+                    python cli.py -r /path/to/search -m date -q 7
+                </div>
+                <div class="cmd-example">
+                    # Compare performance
+                    python cli.py -r /path/to/search -m name -q "test" --compare
+                </div>
+            </div>
+        </div>
+
+        <div class="results-panel">
+            <h2>Search Results</h2>
+            <div id="searchStats"></div>
+            <div id="searchResults"></div>
+
+            <div class="performance-panel" id="performancePanel" style="display: none;">
+                <h3>Performance Comparison</h3>
+                <canvas id="performanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const searchForm = document.getElementById('searchForm');
+        const resultsDiv = document.getElementById('searchResults');
+        const statsDiv = document.getElementById('searchStats');
+        const performancePanel = document.getElementById('performancePanel');
+        let performanceChart;
+
+        searchForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(searchForm);
+            const params = new URLSearchParams(formData);
+
+            const startTime = performance.now();
+            const response = await fetch(`/search?${params.toString()}`);
+            const data = await response.json();
+            const endTime = performance.now();
+
+            displayResults(data, endTime - startTime);
+            if (formData.get('comparePerformance') === 'on') {
+                displayPerformanceComparison(data.performance);
+            }
+        });
+
+        function displayResults(data, timeTaken) {
+            statsDiv.innerHTML = `Found ${data.results.length} results in ${timeTaken.toFixed(2)}ms`;
+
+            resultsDiv.innerHTML = data.results.map(result => `
+                <div class="result-item">
+                    <strong>${result.name}</strong><br>
+                    Path: ${result.path}<br>
+                    Size: ${(result.size/1024).toFixed(1)}KB<br>
+                    Modified: ${result.modified}
+                </div>
+            `).join('');
+        }
+
+        function displayPerformanceComparison(performance) {
+            performancePanel.style.display = 'block';
+
+            if (performanceChart) {
+                performanceChart.destroy();
+            }
+
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Without Index', 'With Index (Total)', 'With Index (Search Only)'],
+                    datasets: [{
+                        label: 'Search Time (ms)',
+                        data: [
+                            performance.noIndex,
+                            performance.withIndex.total,
+                            performance.withIndex.search
+                        ],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.5)',
+                            'rgba(75, 192, 192, 0.5)',
+                            'rgba(153, 102, 255, 0.5)'
+                        ]
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
